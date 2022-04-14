@@ -48,15 +48,14 @@ para_1_ves <- 0.5267 ## VES of full vaccine
 para_2_ves <- 0.6 ## VES of booster vaccine 
 
 ########################## drop #################################
-rb_is <- 0.2 ## relative beta
+rb_is <- 1   ## relative beta
 rb_ia <- 1   ## relative beta
-rb_ip <- 0.8 ## relative beta
+rb_ip <- 1   ## relative beta
 #################################################################
 
 df_para <- read.xlsx('data/parameter.xlsx', sheet = 'gamma') |> select(var, value_shape, value_rate)
-# omega_1 <- df_para[1, 'value_shape']/ df_para[1, 'value_rate']
-# omega_2 <- df_para[2, 'value_shape']/ df_para[2, 'value_rate']
-# omega_3 <- df_para[3, 'value_shape']/ df_para[3, 'value_rate']
+df_asym <- read.xlsx('data/parameter.xlsx', sheet = 'ratio')
+df_asym <- df_asym[,'value']
 
 # model -------------------------------------------------------------------
 
@@ -108,9 +107,9 @@ clusterEvalQ(cl, {
     I_s <- matrix(u[(age_group*4+1):(age_group*5)], age_group, 1)
     R <- matrix(u[(age_group*5+1):(age_group*6)], 1, age_group)
     
-    flow_infect_a <- colSums(I_a %*% (S/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[7]
-    flow_infect_p <- colSums(I_p %*% (S/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[8]
-    flow_infect_s <- colSums(I_s %*% (S/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[9]
+    flow_infect_a <- colSums(I_a %*% (S*p[59:100]/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[7]
+    flow_infect_p <- colSums(I_p %*% (S*p[59:100]/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[8]
+    flow_infect_s <- colSums(I_s %*% (S*p[59:100]/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[9]
     
     flow_s_e <- matrix(c(flow_infect_a, flow_infect_p, flow_infect_s), nrow = 3, byrow = T) |> colSums()
     flow_e_ia <- E * p[3] * p[52]
@@ -180,7 +179,10 @@ for (c in 1:2) {
           pop_n+1, 
           as.numeric(mcmc_para[1,]), 
           times_lockdown[1],
-          1) ## plan 1: only lockdown
+          1,## plan 1: only lockdown
+          rep(df_asym, each = 3)) 
+  # outcome <- lapply(1:2, run.model, times_lockdown = times_lockdown, p = p0)
+  
   clusterExport(cl, c('u0', 'p0', 'times', 'mcmc_para', 'age_group', 
                       'contact_matrix_after', 'contact_matrix', 
                       'times_lockdown'), envir = environment())
@@ -209,4 +211,4 @@ for (c in 1:2) {
 
 stopCluster(cl)
 
-
+outcome <- lapply(1:4, run.model, times_lockdown = times_lockdown, p = p0)
