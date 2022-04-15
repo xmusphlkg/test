@@ -45,7 +45,7 @@ RP_numbers <- c(6, 8, 10, 12)  ## basic reproductive number
 
 para_0_ves <- 0 ## VES of unvaccine
 para_1_ves <- 0.5267 ## VES of full vaccine
-para_2_ves <- 0.6 ## VES of booster vaccine 
+para_2_ves <- 0.6 ## VES of booster vaccine
 
 ########################## drop #################################
 rb_is <- 1   ## relative beta
@@ -85,7 +85,7 @@ clusterEvalQ(cl, {
   library(deSolve)
   ## extend SEIR model
   SEIR_extend <- function(time, u, p){
-    
+
     d <- 1
     # beta <- p[55]
     # beta <- ifelse(time<p[56], p[55], p[55]*(1-p[57]))
@@ -99,39 +99,39 @@ clusterEvalQ(cl, {
         d <- 1/0.25
       }
     }
-    
+
     S <- matrix(u[1:age_group], 1, age_group)
     E <- matrix(u[(age_group+1):(age_group*2)], 1, age_group)
     I_a <- matrix(u[(age_group*2+1):(age_group*3)], age_group, 1)
     I_p <- matrix(u[(age_group*3+1):(age_group*4)], age_group, 1)
     I_s <- matrix(u[(age_group*4+1):(age_group*5)], age_group, 1)
     R <- matrix(u[(age_group*5+1):(age_group*6)], 1, age_group)
-    
+
     flow_infect_a <- colSums(I_a %*% (S*p[59:100]/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[7]
     flow_infect_p <- colSums(I_p %*% (S*p[59:100]/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[8]
     flow_infect_s <- colSums(I_s %*% (S*p[59:100]/p[10:51]) * contact_matrix)*(1-p[rep(4:6, times = age_group/3)])*p[9]
-    
+
     flow_s_e <- matrix(c(flow_infect_a, flow_infect_p, flow_infect_s), nrow = 3, byrow = T) |> colSums()
     flow_e_ia <- E * p[3] * p[52]
     flow_e_ip <- E * (1-p[3]) * p[53]
     flow_ip_is <- I_p * p[54]
     flow_ia_r <- I_a * p[1] * d
     flow_is_r <- I_s * p[2] * d
-    
+
     dS <- -flow_s_e
     dE <- flow_s_e - flow_e_ia - flow_e_ip
     dIa <- flow_e_ia - t(flow_ia_r)
     dIp <- flow_e_ip - t(flow_ip_is)
     dIs <- flow_ip_is - flow_is_r
     dR <- flow_ia_r + flow_is_r
-    
+
     xIa <- sum(flow_e_ia)
     # xIp <- sum(flow_e_ip)
     xIs <- sum(flow_ip_is)
-    
+
     return(list(c(dS, dE, dIa, dIp, dIs, dR, xIa, xIs)))
   }
-  
+
   ## function to merge each age group of model compartment
   modifiy.data <- function(u, age_group){
     time <- u[,1]
@@ -141,14 +141,14 @@ clusterEvalQ(cl, {
     I_p <- rowSums(u[,(age_group*3+2):(age_group*4+1)])
     I_s <- rowSums(u[,(age_group*4+2):(age_group*5+1)])
     R <- rowSums(u[,(age_group*5+2):(age_group*6+1)])
-    
+
     # xIa <- rowSums(u[,(age_group*6+2):(age_group*7+1)])
     # xIp <- rowSums(u[,(age_group*7+2):(age_group*8+1)])
     # xIs <- rowSums(u[,(age_group*8+2):(age_group*9+1)])
     xIa <- u[,age_group*6+2]
     # xIp <- u[,age_group*6+3]
     xIs <- u[,age_group*6+3]
-    
+
     outcome <- data.frame(time, S, E, I_a, I_p, I_s, R, xIa, xIs)
     outcome$dIa <- c(0, diff(outcome$xIa))
     # outcome$dIp <- c(0, diff(outcome$xIp))
@@ -169,27 +169,27 @@ for (c in 1:2) {
   times <- 0:t_end
   contact_matrix <- contact_mt_before[rep(1:(age_group/3), each = 3), rep(1:(age_group/3), each = 3)]
   contact_matrix_after <- contact_mt_after[rep(1:(age_group/3), each = 3), rep(1:(age_group/3), each = 3)]
-  
+
   ## only lockdown -----------------------------------------------------------
   p0 <- c(gamma_1, ## asymptomatic infections
           gamma_2, ## symptomatic infections
           percent_asym,
           para_0_ves, para_1_ves, para_2_ves,
-          rb_ia, rb_ip, rb_is, 
-          pop_n+1, 
-          as.numeric(mcmc_para[1,]), 
+          rb_ia, rb_ip, rb_is,
+          rep(sum(pop_n), length(pop_n)),
+          as.numeric(mcmc_para[1,]),
           times_lockdown[1],
           1,## plan 1: only lockdown
-          rep(df_asym, each = 3)) 
-  clusterExport(cl, c('u0', 'p0', 'times', 'mcmc_para', 'age_group', 
-                      'contact_matrix_after', 'contact_matrix', 
+          rep(df_asym, each = 3))
+  clusterExport(cl, c('u0', 'p0', 'times', 'mcmc_para', 'age_group',
+                      'contact_matrix_after', 'contact_matrix',
                       'times_lockdown'), envir = environment())
-  
+
   # system.time({
   #   outcome <- parLapply(cl, 1:nrow(mcmc_para), run.model, times_lockdown = times_lockdown, p = p0)
   #   save(outcome, file = paste0('outcome/', city_list[c], '_0.25_a.RData'))
   # })
-  
+
   ## mass testing and lockdown--------------------------------------------------
   p0[58] <- 2
   clusterExport(cl, c('p0'), envir = environment())
@@ -197,7 +197,7 @@ for (c in 1:2) {
     outcome <- parLapply(cl, 1:nrow(mcmc_para), run.model, times_lockdown = times_lockdown, p = p0)
     save(outcome, file = paste0('outcome/', city_list[c], '_0.25_c.RData'))
   })
-  
+
   ## only mass testing ---------------------------------------------------------
   p0[58] <- 0
   clusterExport(cl, c('p0'), envir = environment())
